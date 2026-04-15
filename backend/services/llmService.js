@@ -1,5 +1,3 @@
-import fetch from "node-fetch";
-
 export const generateResponse = async ({ disease, query, papers, trials }) => {
   try {
     const response = await fetch(
