@@ -4,10 +4,10 @@ import Chat from "../models/chatModel.js";
 
 const router = express.Router();
 
-// 🔹 Main query route
+
 router.post("/", handleQuery);
 
-// 🔹 Get chat history (NEW)
+
 router.get("/history/:userId", async (req, res) => {
   try {
     const chat = await Chat.findOne({ userId: req.params.userId });

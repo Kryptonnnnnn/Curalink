@@ -368,7 +368,7 @@ export default function App() {
   setQuery("");
   setLoading(true);
 
-  const API_URL = "https://curalink-1-ltoq.onrender.com/api/query";
+  const API_URL = "https://curalink-1-ltoq.onrender.com/api/query/";
 
   try {
 
