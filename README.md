@@ -52,9 +52,49 @@ Curalink AI is a full-stack AI-powered medical research assistant that aggregate
  ### Setup Backend
  - cd backend
  - npm install
- - npm run dev
    
  ### Setup Frontend
  - cd frontend
  - npm install
- - npm start
+
+## Create .env file (VERY IMPORTANT)
+
+Inside backend/ create:
+.env
+
+### Add this:
+
+- PORT=5000
+
+- GROQ_API_KEY=your_groq_api_key_here
+- MONGO_URI=your_mongodb_connection_string
+
+
+## Start Backend
+- node server.js
+
+👉 You should see:
+
+- Server running on port 5000
+= MongoDB connected
+
+## Setup Frontend
+
+- Open new terminal:
+
+- cd frontend
+- npm install
+- npm start
+
+## IMPORTANT CHANGE (LOCAL API)
+
+- In your frontend file:
+
+- const API_URL = "http://localhost:5000/api/query/";
+
+👉 NOT your Render URL
+
+✅ DONE — Open in browser
+- http://localhost:3000
+
+
