@@ -46,7 +46,7 @@ Curalink AI is a full-stack AI-powered medical research assistant that aggregate
 ## 🚀 Getting Started
 
  ### Clone Repository
- - git clone https://github.com/your-username/curalink.git
+ - git clone https://github.com/kryptonnnnnn/curalink.git
  - cd curalink
    
  ### Setup Backend
