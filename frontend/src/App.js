@@ -361,57 +361,56 @@ export default function App() {
   }, [messages, loading]);
 
   const sendQuery = async (text) => {
-  const q = text || query;
-  if (!q.trim()) return;
+    const q = text || query;
+    if (!q.trim()) return;
 
-  setMessages((prev) => [...prev, { type: "user", text: q }]);
-  setQuery("");
-  setLoading(true);
+    setMessages((prev) => [...prev, { type: "user", text: q }]);
+    setQuery("");
+    setLoading(true);
 
-  const API_URL = "https://curalink-1-ltoq.onrender.com/api/query/";
-
-  try {
-
-    let res;
+    const API_URL = "https://curalink-1-ltoq.onrender.com/api/query/";
 
     try {
-      res = await axios.post(API_URL, {
-        userId: "user1",
-        disease,
-        query: q,
-      });
-    } catch (err) {
-      console.log("Retrying request...");
-      await new Promise((r) => setTimeout(r, 2000)); // wait 2 sec
+      let res;
 
-      res = await axios.post(API_URL, {
-        userId: "user1",
-        disease,
-        query: q,
-      });
+      try {
+        res = await axios.post(API_URL, {
+          userId: "user1",
+          disease,
+          query: q,
+        });
+      } catch (err) {
+        console.log("Retrying request...");
+        await new Promise((r) => setTimeout(r, 2000));
+
+        res = await axios.post(API_URL, {
+          userId: "user1",
+          disease,
+          query: q,
+        });
+      }
+
+      setMessages((prev) => [...prev, { type: "bot", data: res.data }]);
+    } catch (err) {
+      console.error("FINAL ERROR:", err);
+
+      setMessages((prev) => [
+        ...prev,
+        {
+          type: "bot",
+          data: {
+            overview:
+              "⚠️ Server is waking up (first request may take 30–60 seconds). Please try again.",
+            insights: [],
+            clinical_trials_summary: [],
+            sources: [],
+          },
+        },
+      ]);
     }
 
-    setMessages((prev) => [...prev, { type: "bot", data: res.data }]);
-  } catch (err) {
-    console.error("FINAL ERROR:", err);
-
-    setMessages((prev) => [
-      ...prev,
-      {
-        type: "bot",
-        data: {
-          overview:
-            "⚠️ Server is waking up (first request may take 30–60 seconds). Please try again.",
-          insights: [],
-          clinical_trials_summary: [],
-          sources: [],
-        },
-      },
-    ]);
-  }
-
-  setLoading(false);
-};
+    setLoading(false);
+  };
 
   const handleKeyDown = (e) => {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -488,14 +487,28 @@ export default function App() {
               {msg.type === "bot" && (
                 <div style={styles.botWrapper}>
                   <div style={styles.botAvatar}>🧬</div>
+
                   <div style={styles.botCard}>
-                    {/* Overview */}
-                    {msg.data.overview && (
+                    {/* 🧠 OVERVIEW */}
+                    {msg.data?.overview && (
                       <>
+                        <div style={{ fontSize: "11px", color: "#64748b", marginBottom: "6px" }}>
+                          AI-generated summary based on real research data
+                        </div>
+
                         <div style={styles.sectionLabel}>
                           <span>📌</span> Overview
                         </div>
-                        <p style={styles.overview}>{msg.data.overview}</p>
+
+                        {msg.data.overview
+                          .split(/(?<=\.)\s+/)
+                          .slice(0, 8)
+                          .map((line, i) => (
+                            <p key={i} style={{ ...styles.overview, marginBottom: "8px" }}>
+                              {line}
+                            </p>
+                          ))}
+
                         {msg.data.sources?.length > 0 && (
                           <div style={{
                             display: "inline-flex",
@@ -509,37 +522,36 @@ export default function App() {
                             padding: "3px 10px",
                             marginBottom: "14px",
                             fontWeight: "600",
-                            letterSpacing: "0.3px",
                           }}>
-                            <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: "#00d4a0", display: "inline-block" }} />
-                            Based on {msg.data.sources.length} research paper{msg.data.sources.length !== 1 ? "s" : ""}
+                            ✔ Based on {msg.data.sources.length} research papers
                           </div>
                         )}
                       </>
                     )}
 
-                    {/* Insights */}
-                    {msg.data.insights?.length > 0 && (
-                      <>
-                        <div style={styles.sectionLabel}>
-                          <span>💡</span> Key Insights
-                        </div>
-                        <ul style={styles.insightsList}>
-                          {msg.data.insights.map((item, idx) => (
-                            <li key={idx} style={styles.insightItem}>
-                              <div style={styles.insightBullet} />
-                              {item}
-                            </li>
-                          ))}
-                        </ul>
-                      </>
-                    )}
+                    {/* 💡 INSIGHTS (AUTO-FALLBACK) */}
+                    <div style={styles.sectionLabel}>
+                      <span>💡</span> Key Insights
+                    </div>
 
-                    {/* Trials */}
+                    <ul style={styles.insightsList}>
+                      {(msg.data.insights?.length > 0
+                        ? msg.data.insights
+                        : msg.data.overview?.split(".").slice(0, 4)
+                      )?.map((item, idx) => (
+                        <li key={idx} style={styles.insightItem}>
+                          <div style={styles.insightBullet} />
+                          {item}
+                        </li>
+                      ))}
+                    </ul>
+
+                    {/* 🧪 CLINICAL TRIALS */}
                     <div style={styles.divider} />
                     <div style={styles.sectionLabel}>
                       <span>🧪</span> Clinical Trials
                     </div>
+
                     {msg.data.clinical_trials_summary?.length > 0 ? (
                       <div style={styles.trialsGrid}>
                         {msg.data.clinical_trials_summary.map((t, idx) => (
@@ -551,24 +563,25 @@ export default function App() {
                     ) : (
                       <div style={{
                         fontSize: "13px",
-                        color: "#475569",
-                        padding: "10px 12px",
-                        background: "rgba(255,255,255,0.02)",
-                        border: "1px dashed rgba(255,255,255,0.08)",
+                        color: "#94a3b8",
+                        padding: "10px",
+                        border: "1px dashed rgba(255,255,255,0.1)",
                         borderRadius: "8px",
-                        marginBottom: "4px",
                       }}>
-                        No relevant clinical trials found for this query.
+                        No trials found — try a more specific query like:
+                        <br />
+                        <b>"Phase 3 trials for lung cancer"</b>
                       </div>
                     )}
 
-                    {/* Sources */}
+                    {/* 📚 SOURCES */}
                     {msg.data.sources?.length > 0 && (
                       <>
                         <div style={styles.divider} />
                         <div style={styles.sectionLabel}>
-                          <span>📚</span> Sources
+                          <span>📚</span> Research Sources
                         </div>
+
                         <div style={styles.sourcesGrid}>
                           {msg.data.sources.map((s, idx) => (
                             <a
@@ -576,11 +589,12 @@ export default function App() {
                               href={s.url || "#"}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="source-link"
                               style={styles.sourceLink}
                             >
                               <span>↗</span>
-                              <span style={{ flex: 1 }}>{s.title}</span>
+                              <span style={{ flex: 1 }}>
+                                {s.title?.slice(0, 90)}
+                              </span>
                               {s.year && (
                                 <span style={styles.sourceYear}>{s.year}</span>
                               )}
@@ -631,6 +645,7 @@ export default function App() {
             />
             <button
               className="send-btn"
+              type="button"
               style={styles.sendBtn(!query.trim() || loading)}
               onClick={() => sendQuery()}
               disabled={!query.trim() || loading}
