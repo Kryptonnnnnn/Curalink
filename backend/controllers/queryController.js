@@ -9,7 +9,6 @@ export const handleQuery = async (req, res) => {
   try {
     const { disease, query, userId = "default-user" } = req.body;
 
-    // 🔹 Get previous context
     const existingChat = await Chat.findOne({ userId });
 
     let finalDisease = disease;
@@ -19,9 +18,8 @@ export const handleQuery = async (req, res) => {
       finalDisease = last.disease;
     }
 
-    const expandedQuery = `${query} ${finalDisease}`;
+    const expandedQuery = `${query} ${finalDisease || ""}`;
 
-    // 🔹 Fetch data
     const [pubmed, openalex, trials] = await Promise.all([
       fetchPubMed(expandedQuery),
       fetchOpenAlex(expandedQuery),
@@ -35,11 +33,10 @@ export const handleQuery = async (req, res) => {
     const finalResponse = await generateResponse({
       disease: finalDisease,
       query,
-      papers: ranked.slice(0, 8),
-      trials: trials.slice(0, 5)
+      papers: ranked.slice(0, 5),
+      trials: trials.slice(0, 3)
     });
 
-    // 🔥 SAVE TO DB
     await Chat.findOneAndUpdate(
       { userId },
       {
@@ -57,7 +54,11 @@ export const handleQuery = async (req, res) => {
     res.json(finalResponse);
 
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: "Something went wrong" });
+    res.status(500).json({
+      overview: "Server error",
+      insights: [],
+      clinical_trials_summary: [],
+      sources: []
+    });
   }
 };

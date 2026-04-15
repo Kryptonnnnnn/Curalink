@@ -4,9 +4,7 @@ import Chat from "../models/chatModel.js";
 
 const router = express.Router();
 
-
 router.post("/", handleQuery);
-
 
 router.get("/history/:userId", async (req, res) => {
   try {
@@ -18,7 +16,6 @@ router.get("/history/:userId", async (req, res) => {
 
     res.json(chat);
   } catch (error) {
-    console.error(error);
     res.status(500).json({ error: "Failed to fetch history" });
   }
 });

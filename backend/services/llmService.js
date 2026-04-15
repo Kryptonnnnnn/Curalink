@@ -1,45 +1,33 @@
-import { HfInference } from "@huggingface/inference";
-
-const hf = new HfInference(process.env.HUGGINGFACE_API_KEY);
+import fetch from "node-fetch";
 
 export const generateResponse = async ({ disease, query, papers, trials }) => {
-
-  const prompt = `
-You are a medical AI assistant.
-
-Disease: ${disease || "Not specified"}
-Query: ${query}
-
-Give response in JSON:
-{
-  "overview": "...",
-  "insights": ["..."],
-  "clinical_trials_summary": ["..."],
-  "sources": ["..."]
-}
-`;
-
   try {
-    const res = await hf.textGeneration({
-      model: "HuggingFaceH4/zephyr-7b-beta",
-      inputs: prompt,
-      parameters: {
-        max_new_tokens: 300
+    const response = await fetch(
+      "https://api-inference.huggingface.co/models/google/flan-t5-base",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${process.env.HUGGINGFACE_API_KEY}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          inputs: `Explain briefly: ${query} ${disease || ""}`
+        })
       }
-    });
+    );
+
+    const data = await response.json();
 
     return {
-      overview: res.generated_text,
+      overview: data?.[0]?.generated_text || "No response",
       insights: [],
       clinical_trials_summary: [],
       sources: papers.slice(0, 5)
     };
 
   } catch (error) {
-    console.error("❌ HF ERROR:", error);
-
     return {
-      overview: "AI service failed. Check API key or model.",
+      overview: "AI service failed",
       insights: [],
       clinical_trials_summary: [],
       sources: []
