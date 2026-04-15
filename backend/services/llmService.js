@@ -1,31 +1,48 @@
+import Groq from "groq-sdk";
+
+const groq = new Groq({
+  apiKey: process.env.GROQ_API_KEY,
+});
+
 export const generateResponse = async ({ disease, query, papers, trials }) => {
   try {
-    const response = await fetch(
-      "https://api-inference.huggingface.co/models/google/flan-t5-base",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${process.env.HUGGINGFACE_API_KEY}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          inputs: `Explain briefly: ${query} ${disease || ""}`
-        })
-      }
-    );
+    const prompt = `
+You are a medical AI assistant.
 
-    const data = await response.json();
+Disease: ${disease || "Not specified"}
+Query: ${query}
+
+Give response in JSON format:
+{
+  "overview": "...",
+  "insights": ["..."],
+  "clinical_trials_summary": ["..."],
+  "sources": ["..."]
+}
+`;
+
+    const completion = await groq.chat.completions.create({
+      model: "llama3-8b-8192",
+      messages: [
+        { role: "user", content: prompt }
+      ],
+      temperature: 0.7,
+    });
+
+    const text = completion.choices[0].message.content;
 
     return {
-      overview: data?.[0]?.generated_text || "No response",
+      overview: text,
       insights: [],
       clinical_trials_summary: [],
       sources: papers.slice(0, 5)
     };
 
   } catch (error) {
+    console.error("GROQ ERROR:", error);
+
     return {
-      overview: "AI service failed",
+      overview: "AI service temporarily unavailable",
       insights: [],
       clinical_trials_summary: [],
       sources: []
