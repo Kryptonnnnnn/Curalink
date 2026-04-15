@@ -1,134 +1,59 @@
 export const generateResponse = async ({ disease, query, papers, trials }) => {
   try {
     if (!process.env.GROQ_API_KEY) {
-      throw new Error("GROQ_API_KEY missing");
+      throw new Error("Missing GROQ API Key");
     }
 
-    const rankedPapers = papers
-      .filter(p => p.title)
-      .sort((a, b) => (b.year || 0) - (a.year || 0))
-      .slice(0, 6);
-
-    const rankedTrials = trials
-      .filter(t => t.title)
-      .slice(0, 3);
-
-    const papersText = rankedPapers
-      .map(
-        (p, i) =>
-          `${i + 1}. ${p.title} (${p.year || "N/A"})`
-      )
-      .join("\n");
-
-    const trialsText = rankedTrials
-      .map(
-        (t, i) =>
-          `${i + 1}. ${t.title} (${t.status || "N/A"})`
-      )
-      .join("\n");
+    const topPapers = papers.slice(0, 5);
 
     const prompt = `
-Return ONLY JSON.
+Explain "${query}" for ${disease} in simple medical terms.
 
-{
-  "overview": "",
-  "insights": [],
-  "clinical_trials_summary": [],
-  "sources": []
-}
-
-Disease: ${disease}
-Query: ${query}
-
-Papers:
-${papersText}
-
-Trials:
-${trialsText}
+Give:
+- short overview
+- 3 key insights
+- mention any clinical relevance
 `;
 
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 12000);
+    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "llama-3.1-8b-instant",
+        messages: [
+          {
+            role: "user",
+            content: prompt,
+          },
+        ],
+      }),
+    });
 
-    let data;
+    const data = await res.json();
 
-    try {
-      const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "mixtral-8x7b-32768",
-          messages: [{ role: "user", content: prompt }],
-          temperature: 0.3,
-        }),
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeout);
-
-      data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error?.message || "Groq failed");
-      }
-
-    } catch (err) {
-      console.log("⚠️ Primary model failed, switching fallback...");
-
-      const fallbackRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "llama-3.1-8b-instant",
-          messages: [{ role: "user", content: prompt }],
-        }),
-      });
-
-      data = await fallbackRes.json();
-    }
-
-    let text = data?.choices?.[0]?.message?.content || "";
-
-    text = text.replace(/```json/g, "").replace(/```/g, "").trim();
-
-    let parsed;
-
-    try {
-      parsed = JSON.parse(text);
-    } catch {
-      parsed = {
-        overview: text || "Generated response",
-        insights: [],
-        clinical_trials_summary: [],
-        sources: [],
-      };
-    }
+    const text =
+      data?.choices?.[0]?.message?.content ||
+      "No response generated";
 
     return {
-      overview: parsed.overview || "No overview available",
-      insights: parsed.insights || [],
-      clinical_trials_summary: parsed.clinical_trials_summary || [],
-      sources:
-        parsed.sources?.length > 0
-          ? parsed.sources
-          : rankedPapers.map(p => ({
-              title: p.title,
-              year: p.year,
-              url: p.url,
-            })),
+      overview: text,
+      insights: [],
+      clinical_trials_summary: [],
+      sources: topPapers.map(p => ({
+        title: p.title,
+        year: p.year,
+        url: p.url,
+      })),
     };
 
   } catch (error) {
-    console.error("FINAL LLM ERROR:", error);
+    console.error("LLM ERROR:", error);
 
     return {
-      overview: "System working but AI response failed. Please retry.",
+      overview: "Unable to generate AI response. Please try again.",
       insights: [],
       clinical_trials_summary: [],
       sources: [],
