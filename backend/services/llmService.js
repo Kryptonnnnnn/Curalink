@@ -7,84 +7,93 @@ export const generateResponse = async ({ disease, query, papers, trials }) => {
     const rankedPapers = papers
       .filter(p => p.title)
       .sort((a, b) => (b.year || 0) - (a.year || 0))
-      .slice(0, 8);
+      .slice(0, 6);
 
     const rankedTrials = trials
       .filter(t => t.title)
-      .slice(0, 5);
+      .slice(0, 3);
 
     const papersText = rankedPapers
       .map(
         (p, i) =>
-          `${i + 1}. ${p.title} (${p.year || "N/A"}) - ${p.abstract || "No abstract"}`
+          `${i + 1}. ${p.title} (${p.year || "N/A"})`
       )
       .join("\n");
 
     const trialsText = rankedTrials
       .map(
         (t, i) =>
-          `${i + 1}. ${t.title} | Status: ${t.status || "N/A"} | Location: ${t.location || "N/A"}`
+          `${i + 1}. ${t.title} (${t.status || "N/A"})`
       )
       .join("\n");
 
     const prompt = `
-You are an advanced medical research assistant.
+Return ONLY JSON.
 
-Patient Condition: ${disease}
-User Query: ${query}
+{
+  "overview": "",
+  "insights": [],
+  "clinical_trials_summary": [],
+  "sources": []
+}
 
-Research Papers:
+Disease: ${disease}
+Query: ${query}
+
+Papers:
 ${papersText}
 
-Clinical Trials:
+Trials:
 ${trialsText}
-
-Instructions:
-- Use the research papers and trials to generate accurate insights
-- Do NOT hallucinate
-- Keep answers factual and medical-focused
-- Return ONLY valid JSON
-
-Format:
-{
-  "overview": "clear explanation",
-  "insights": ["point 1", "point 2", "point 3"],
-  "clinical_trials_summary": ["trial insight 1", "trial insight 2"],
-  "sources": [
-    {
-      "title": "",
-      "year": "",
-      "url": ""
-    }
-  ]
-}
 `;
 
-    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "mixtral-8x7b-32768",
-        messages: [
-          {
-            role: "user",
-            content: prompt,
-          },
-        ],
-        temperature: 0.3,
-      }),
-    });
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 12000);
 
-    const data = await res.json();
+    let data;
 
-    if (!res.ok) {
-      throw new Error(data.error?.message || "Groq failed");
+    try {
+      const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "mixtral-8x7b-32768",
+          messages: [{ role: "user", content: prompt }],
+          temperature: 0.3,
+        }),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timeout);
+
+      data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error?.message || "Groq failed");
+      }
+
+    } catch (err) {
+      console.log("⚠️ Primary model failed, switching fallback...");
+
+      const fallbackRes = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "llama-3.1-8b-instant",
+          messages: [{ role: "user", content: prompt }],
+        }),
+      });
+
+      data = await fallbackRes.json();
     }
 
-    let text = data.choices[0].message.content;
+    let text = data?.choices?.[0]?.message?.content || "";
 
     text = text.replace(/```json/g, "").replace(/```/g, "").trim();
 
@@ -92,11 +101,9 @@ Format:
 
     try {
       parsed = JSON.parse(text);
-    } catch (err) {
-      console.log("JSON PARSE FAILED, using fallback");
-
+    } catch {
       parsed = {
-        overview: text,
+        overview: text || "Generated response",
         insights: [],
         clinical_trials_summary: [],
         sources: [],
@@ -116,11 +123,12 @@ Format:
               url: p.url,
             })),
     };
+
   } catch (error) {
-    console.error("LLM ERROR:", error);
+    console.error("FINAL LLM ERROR:", error);
 
     return {
-      overview: "AI service temporarily unavailable",
+      overview: "System working but AI response failed. Please retry.",
       insights: [],
       clinical_trials_summary: [],
       sources: [],
